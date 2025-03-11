@@ -1,0 +1,20 @@
+[
+    {
+        "agent_id": "asst_y4afh4JDDXmCr97wEfvai2UD",
+        "agent_name": "Document Search Agent",
+        "user_query": "{user_input}",
+        "break_status": "I’m not sure I understand. Could you say it another way?"
+    },
+    {
+        "agent_id": "asst_PqBo7MNYVHlV0swYcmpcZeiB",
+        "agent_name": "Report Generator Agent",
+        "user_query": "Write a detailed report about the {user_input} plan. Make sure to include information about coverage exclusions. Here is the relevant information for the plan: {last_response}.",
+        "break_status": null
+    },
+    {
+        "agent_id": "asst_706GiYZuUksP5yeJpejpCHs2",
+        "agent_name": "Validation Agent",
+        "user_query": "Validate that the generated report includes information about coverage exclusions. Here is the generated report: {last_response}",
+        "break_status": null
+    }
+]

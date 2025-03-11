@@ -1,0 +1,73 @@
+{
+    "object": "list",
+    "data": [
+      {
+        "id": "msg_lGvreXoKwwma9xbqZ5d33lBE",
+        "object": "thread.message",
+        "created_at": 1741005993,
+        "assistant_id": "asst_D7IgxFPd24KLJy23nz4gqv7R",
+        "thread_id": "thread_Zc4PNAtx44q66RcITMm1NCGN",
+        "run_id": "run_vgZpgK93pUFL6kd9uISLAhPe",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "image_file",
+            "image_file": {
+              "file_id": "assistant-2nH7r3tcbycbPepvmBRsGb"
+            }
+          },
+          {
+            "type": "text",
+            "text": {
+              "value": "Here is the bar chart comparing the health plans. You can download the file using the link below:\n\n[Download health-plan-comparison.png](sandbox:/mnt/data/health-plan-comparison.png)",
+              "annotations": [
+                {
+                  "type": "file_path",
+                  "text": "sandbox:/mnt/data/health-plan-comparison.png",
+                  "start_index": 137,
+                  "end_index": 181,
+                  "file_path": {
+                    "file_id": "assistant-KDZ8Tn5D8n9zSh4V3DKBhg"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "attachments": [
+          {
+            "file_id": "assistant-KDZ8Tn5D8n9zSh4V3DKBhg",
+            "tools": [
+              {
+                "type": "code_interpreter"
+              }
+            ]
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "id": "msg_K91EG7V6VGfwLR3rNHzuL5fM",
+        "object": "thread.message",
+        "created_at": 1741005981,
+        "assistant_id": null,
+        "thread_id": "thread_Zc4PNAtx44q66RcITMm1NCGN",
+        "run_id": null,
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "value": "Could you please create a bar chart for the using the following data and         provide the file to me? Name the file as health-plan-comparision.png.         Here is the data:         Provider\t    Monthly Premium\tDeductible\tOut-of-Pocket Limit         Northwind\t    $300\t\t$1,500\t\t$6,000         Aetna\t\t    $350\t\t$1,000\t\t$5,500         United Health\t$250\t\t$2,000\t\t$7,000         Premera\t\t    $200\t\t$2,200\t\t$6,500",
+              "annotations": []
+            }
+          }
+        ],
+        "attachments": [],
+        "metadata": {}
+      }
+    ],
+    "first_id": "msg_lGvreXoKwwma9xbqZ5d33lBE",
+    "last_id": "msg_K91EG7V6VGfwLR3rNHzuL5fM",
+    "has_more": false
+  }

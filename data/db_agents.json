@@ -1,0 +1,26 @@
+[
+    {
+        "id": "asst_6z7kouk8SxpH9Hy76cCJBj03",
+        "timestamp": "2025-03-04T15:55:50.717633",
+        "name": "agent-barchart",
+        "model": "gpt-4o",
+        "prompt": "You are a helpful agent.",
+        "tools": []
+    },
+    {
+        "id": "asst_AdIMVJsM1OG9U8fVdE1rAkvm",
+        "timestamp": "2025-03-06T13:48:33.323571",
+        "name": "emoji-agent",
+        "model": "gpt-4o",
+        "prompt": "You always respond with emojis only instead of words. Emojis is your form of communication.",
+        "tools": []
+    },
+    {
+        "id": "asst_yEs1LOuKeIFXt6mowvRnr9IT",
+        "timestamp": "2025-03-11T11:43:42.402920",
+        "name": "customer-care",
+        "model": "gpt-4o",
+        "prompt": "You are a helpful agent.",
+        "tools": []
+    }
+]
