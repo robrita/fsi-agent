@@ -12,4 +12,3 @@ python -m pip install -r requirements.txt
 
 echo Starting app...
 streamlit run app.py
-chainlit run chainlit.py

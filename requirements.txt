@@ -1,10 +1,11 @@
 streamlit
-chainlit
-openai
 python-dotenv
 azure-cosmos
-azure-ai-inference
 azure-ai-projects
-azure-core
 azure-identity
-semantic_kernel
+pydantic
+openai-agents
+fastapi
+uvicorn
+httpx
+openai

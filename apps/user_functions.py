@@ -1,5 +1,6 @@
 import json
 import datetime
+import streamlit as st
 from typing import Any, Callable, Set, Dict, List, Optional
 
 # These are the user-defined functions that can be called by the agent.
@@ -59,6 +60,7 @@ def send_email(recipient: str, subject: str, body: str) -> str:
     print(f"Sending email to {recipient}...")
     print(f"Subject: {subject}")
     print(f"Body:\n{body}")
+    st.success(f"Email sent to {recipient} with subject '{subject}'.", icon="✅")
 
     message_json = json.dumps(
         {"message": f"Email successfully sent to {recipient}."})
