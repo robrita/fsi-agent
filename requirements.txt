@@ -1,11 +1,7 @@
-streamlit
+chainlit
 python-dotenv
-azure-cosmos
 azure-ai-projects
 azure-identity
 pydantic
 openai-agents
-fastapi
-uvicorn
-httpx
 openai
