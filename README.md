@@ -1,4 +1,6 @@
-1. copy sample.env to .env and pdate
+0. git clone -b rob-agents-sdk https://github.com/robrita/fsi-agent
+
+1. copy sample.env to .env and update
 
 2. python -m venv venv
 
