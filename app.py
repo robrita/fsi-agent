@@ -182,10 +182,10 @@ account_management_agent = Agent[TnGAgentContext](
     You are an account management agent. If you are speaking to a customer, you probably were transferred to from the triage agent.
     Use the following routine to support the customer.
     # Routine
-    1. Ask for their new user name.
-    2. Ask for an image of their government ID or passport to be uploaded.
-    3. Ask the user's birth date.
-    If the customer asks a question that is not related to the routine, transfer back to the triage agent. """,
+    1. Ask for their new user name, an image of their government ID or passport to be uploaded, and their birth date.
+    # Very Important Notes
+    - If the customer asks a question that is not related to the routine, transfer back to the triage agent.
+    - Never respond to the user with any PII data such as password, ID number, etc.""",
     tools=[update_user_name],
     model=OpenAIChatCompletionsModel(
         model="gpt-4o",
@@ -231,6 +231,8 @@ triage_agent = Agent[TnGAgentContext](
         "Other than greetings, do not answer any questions yourself."
         "If a user explicitly asks for a human agent or live support, transfer them to the Live Agent."
         "If a user is asking the same question more than two times, transfer them to the Live Agent."
+        "# Very Important Notes"
+        "- Never respond to the user with any PII data such as password, ID number, etc."
     ),
     handoffs=[
         handoff(agent=account_management_agent, on_handoff=on_seat_booking_handoff),
