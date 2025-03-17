@@ -1,5 +1,6 @@
 from __future__ import annotations as _annotations
 import os
+import time
 import logging
 import asyncio
 import random
@@ -9,22 +10,24 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
+from openai.types.responses import ResponseTextDeltaEvent
 from openai import AsyncAzureOpenAI
-
+from azure.ai.projects.models import (
+    AgentStreamEvent,
+    MessageDeltaChunk,
+    ThreadRun,
+)
 from agents import (
     Agent,
-    HandoffOutputItem,
-    ItemHelpers,
-    MessageOutputItem,
     RunContextWrapper,
     Runner,
-    ToolCallItem,
-    ToolCallOutputItem,
     TResponseInputItem,
     function_tool,
     handoff,
     OpenAIChatCompletionsModel,
     set_tracing_disabled,
+    set_default_openai_client,
+    set_default_openai_api
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -40,6 +43,8 @@ azure_client = AsyncAzureOpenAI(
     api_key=os.getenv("MY_OPENAI_API_KEY"),
 )
 
+set_default_openai_client(azure_client, use_for_tracing=False)
+set_default_openai_api("chat_completions")
 
 class TnGAgentContext(BaseModel):
     user_name: str | None = None
@@ -57,38 +62,62 @@ class TnGAgentContext(BaseModel):
 )
 async def faq_lookup_tool(question: str) -> str:
     print(f"User Question: {question}")
-    project_client = cl.user_session.get("client")
-    agent_id="asst_q85dqNdBIJxzugnWxC1YsZgx"
+    start_time = cl.user_session.get("start_time")
+    print(f"Elapsed time: {(time.time() - start_time):.2f} seconds - faq_lookup_tool")
+
+    project_client = AIProjectClient.from_connection_string(
+        conn_str=os.getenv("AIPROJECT_CONNECTION_STRING"), credential=DefaultAzureCredential()
+    )
+
+    agent_id="asst_9SvEE2tW2TBHevgOBSPgQP4d"
+    is_first_token = None
 
     try:
         # create thread for the agent
-        thread = project_client.agents.create_thread()
-        print(f"thread ID: {thread.id}")
+        thread_id = cl.user_session.get("new_threads").get(agent_id)
+
+        print(f"thread ID: {thread_id}")
+        print(f"Elapsed time: {(time.time() - start_time):.2f} seconds - create_thread")
 
         # Create a message, with the prompt being the message content that is sent to the model
         project_client.agents.create_message(
-            thread_id=thread.id,
+            thread_id=thread_id,
             role="user",
             content=question,
         )
 
-        # Run the agent to process tne message in the thread
-        run = project_client.agents.create_and_process_run(thread_id=thread.id, agent_id=agent_id)
-        print(f"Run finished with status: {run.status}")
+        async with cl.Step(name="faq-agent") as step:
+            step.input = question
 
-        # Check if you got "Rate limit is exceeded.", then you want to increase the token limit
-        if run.status == "failed":
-            raise Exception(run.last_error)
+            # Run the agent to process tne message in the thread
+            with project_client.agents.create_stream(thread_id=thread_id, agent_id=agent_id) as stream:
+                for event_type, event_data, _ in stream:
+                    if isinstance(event_data, MessageDeltaChunk):
+                        # Stream the message delta chunk
+                        await step.stream_token(event_data.text)
+                        if not is_first_token:
+                            print(f"Elapsed time: {(time.time() - start_time):.2f} seconds - {event_data.text}")
+                            is_first_token = True
+
+                    elif isinstance(event_data, ThreadRun):
+                        if event_data.status == "failed":
+                            print(f"Run failed. Error: {event_data.last_error}")
+                            raise Exception(event_data.last_error)
+
+                    elif event_type == AgentStreamEvent.ERROR:
+                        print(f"An error occurred. Data: {event_data}")
+                        raise Exception(event_data)
 
         # Get all messages from the thread
-        messages = project_client.agents.list_messages(thread.id)
+        messages = project_client.agents.list_messages(thread_id)
         last_msg = messages.get_last_text_message_by_role("assistant")
 
-        # Delete the thread after processing
-        if cl.user_session.get("delete_thread"):
-            project_client.agents.delete_thread(thread.id)
+        # Delete the thread later after processing
+        delete_threads = cl.user_session.get("delete_threads") or []
+        delete_threads.append(thread_id)
+        cl.user_session.set("delete_threads", delete_threads)
 
-        print(f"Last message: {last_msg.text.value}")
+        # print(f"Last message: {last_msg.text.value}")
         return last_msg.text.value
 
     except Exception as e:
@@ -219,68 +248,73 @@ account_management_agent.handoffs.append(triage_agent)
 live_agent.handoffs.append(triage_agent)
 
 
-### AZURE AI PROJECT CLIENT
-
-async def init_project():
-    try:
-        project_client = AIProjectClient.from_connection_string(
-            conn_str=os.getenv("AIPROJECT_CONNECTION_STRING"), credential=DefaultAzureCredential()
-        )
-
-        # Create threads object in case it needs to persist across messages
-        cl.user_session.set("threads", {})
-        cl.user_session.set("delete_thread", True)
-
-        return project_client
-
-    except Exception as e:
-        await cl.Error(content=f"Error initializing ai project: {str(e)}").send()
-
-
 async def main(user_input: str) -> None:
+    project_client = cl.user_session.get("project_client")
     current_agent = cl.user_session.get("current_agent")
     input_items = cl.user_session.get("input_items")
     context = cl.user_session.get("context")
-
-    last_response = None
     print(f"Received message: {user_input}")
+
+    # Show thinking message to user
+    msg = await cl.Message(f"thinking...", author="agent").send()
+    msg_final = cl.Message("", author="agent")
+    is_thinking = True
+
+    cl.user_session.set("msg_response", msg)
+    cl.user_session.set("delete_threads", [])
 
     try:
         input_items.append({"content": user_input, "role": "user"})
-        result = await Runner.run(current_agent, input_items, context=context)
+        result = Runner.run_streamed(current_agent, input_items, context=context)
+        last_agent = ""
 
-        for new_item in result.new_items:
-            agent_name = new_item.agent.name
-            if isinstance(new_item, MessageOutputItem):
-                last_response = f"[{agent_name}] {ItemHelpers.text_message_output(new_item)}"
-                print(last_response)
-            elif isinstance(new_item, HandoffOutputItem):
-                print(
-                    f"Handed off from {new_item.source_agent.name} to {new_item.target_agent.name}"
-                )
-            elif isinstance(new_item, ToolCallItem):
-                print(f"{agent_name}: Calling a tool")
-            elif isinstance(new_item, ToolCallOutputItem):
-                print(f"{agent_name}: Tool call output: {new_item.output}")
-            else:
-                print(f"{agent_name}: Skipping item: {new_item.__class__.__name__}")
+        # Stream the response
+        async for event in result.stream_events():
+            if event.type == "agent_updated_stream_event":
+                if is_thinking:
+                    last_agent = event.new_agent.name
+                    msg.content = f"[{last_agent}] thinking..."
+                    await msg.send()
+
+            elif event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                if is_thinking:
+                    is_thinking = False
+                    await msg.remove()
+                    msg_final.content = f"[{last_agent}] "
+                    await msg_final.send()
+
+                await msg_final.stream_token(event.data.delta)
 
         cl.user_session.set("current_agent", result.last_agent)
         cl.user_session.set("input_items", result.to_input_list())
 
     except Exception as e:
         print(f"Error: {e}")
-        # Track errors and transfer to live agent if needed
-        context.error_count += 1
-        last_response = "I'm sorry, I encountered an error while processing your request. Please try again."
-        
-        if context.error_count >= 2:
-            # Switch to live agent after multiple errors
-            cl.user_session.set("current_agent", live_agent)
-            last_response += " I'm transferring you to a live agent who can better assist you."
+        msg_final.content = "I'm sorry, I encountered an error while processing your request. Please try again."
 
     # show the last response in the UI
-    await cl.Message(last_response).send()
+    await msg_final.update()
+
+    # Delete threads after processing
+    delete_threads = cl.user_session.get("delete_threads") or []
+    for thread_id in delete_threads:
+        try:
+            project_client.agents.delete_thread(thread_id)
+            print(f"Deleted thread: {thread_id}")
+        except Exception as e:
+            print(f"Error deleting thread {thread_id}: {e}")
+
+    # Create new thread for the next message
+    new_threads = cl.user_session.get("new_threads") or {}
+
+    for key in new_threads:
+        if new_threads[key] in delete_threads:
+            thread = project_client.agents.create_thread()
+            new_threads[key] = thread.id
+            print(f"Created new thread: {thread.id}")
+
+    # Update new threads in the user session
+    cl.user_session.set("new_threads", new_threads)
 
 
 # Chainlit setup
@@ -289,7 +323,13 @@ async def on_chat_start():
     # Set up the initial message
     await cl.Message("Plase enter your OTP to proceed.").send()
 
+    project_client = AIProjectClient.from_connection_string(
+        conn_str=os.getenv("AIPROJECT_CONNECTION_STRING"), credential=DefaultAzureCredential()
+    )
+
     # Initialize user session
+    cl.user_session.set("project_client", project_client)
+    cl.user_session.set("reuse_threads", {}) # Only for storing threads per agent
     cl.user_session.set("user_auth", False)
 
     current_agent: Agent[TnGAgentContext] = triage_agent
@@ -297,13 +337,18 @@ async def on_chat_start():
 
     cl.user_session.set("current_agent", current_agent)
     cl.user_session.set("input_items", input_items)
-
     cl.user_session.set("context", TnGAgentContext())
-    cl.user_session.set("client", await init_project())
+
+    # Create a thread for the agent
+    thread = project_client.agents.create_thread()
+    cl.user_session.set("new_threads", {
+        "asst_9SvEE2tW2TBHevgOBSPgQP4d": thread.id,
+    })
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    cl.user_session.set("start_time", time.time())
     user_input = message.content
 
     for element in message.elements:
